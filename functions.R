@@ -3,8 +3,6 @@
 
 # Copyright 2003-2013 FLR Team. Distributed under the GPL 2 or later
 # Maintainer: Iago Mosqueira, JRC
-# Soundtrack:
-# Notes:
 
 # readSS3Stock {{{
 readSS3Stock <- function(dir, name="", desc=paste("read from SS3:", dir), ...) {

@@ -2,7 +2,7 @@
 
 ## North Atlantic Albacore ./AlbacoreTuna
 
-SS
+SS, biomass CPUE
 
 ## ./BiscayAnchovy
 

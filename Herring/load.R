@@ -8,7 +8,7 @@
 library(FLCore)
 
 # FLStock
-stk <- readFLStock("-INDEX.txt")
+stk <- readFLStock("Herring/-INDEX.txt")
 
 # All catch in landings, set diacrds to 0
 discards.n(stk) <- 0
@@ -17,6 +17,6 @@ discards.wt(stk) <- landings.wt(stk)
 catch(stk) <- computeCatch(stk, slot="all")
 
 # FLIndex
-idx <- readFLIndices("hadivef.dat")
+idx <- readFLIndices("Herring/hadivef.dat")
 
 save(stk, idx, file="haddock.RData")

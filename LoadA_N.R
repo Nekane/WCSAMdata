@@ -49,6 +49,7 @@ lst <- lapply(split(data, data$Fishery), function(x) {
   #summary(flq)  
   FLQuants(cth=cth, eff=eff, len=flqLen)
 })
+
 #lst[[1]]$cth # cth, eff, len
 #summary(lst[[1]])
 #lst[[1:10]]$eff[lst[[1:10]]$eff==-1] <- NA     # Asign NA to effort= -1 ?????????
@@ -63,7 +64,6 @@ CPUE <- lst[[8]]$cth/lst[[8]]$eff
 summary (CPUE)
 seasonSums(CPUE)
 
-# }}}
 
 ##save(stk, idx, CPUE, file="data/Albacore.RData") ?????????
 
@@ -165,21 +165,21 @@ catch(stk) <- computeCatch(stk, slot="all")
 # FLIndex
 idx <- readFLIndices("Haddock/hadivef.dat")
 
-# }}}
 
 #====================================================================
 # fishing mortality by age and year (~separable)
 # catchability at age without year trend
 #====================================================================
 
-#### We have some 0 in catch so we replace them by NA in order to select the proper plusgroups
+#### We have some 0 in catch so we sum them in order to select the proper plusgroups
 
 with(as.data.frame(catch.n(stk)), tapply(data, age, function(x) sum (x==0)))
 
-#### we don't have a plusgroup so we need to set one with the highest value possible (in this case 13 does work, when it is higher we have a strange extimation of the SSB)
+#### we select 10 plusgroups
 stk@range
 
 stk <- setPlusGroup(stk,10)
+
 #### let's look how many survey we have in the index
 lapply(idx, range)
 #### we have 5, so we need to make a list of 5 factors in the q model
@@ -338,8 +338,6 @@ catch(stk) <- computeCatch(stk, slot="all")
 # FLIndex
 idx <- readFLIndices("NSCod/Cod347_2012_ext.tun")
 
-
-
 # }}}
 
 
@@ -348,13 +346,13 @@ idx <- readFLIndices("NSCod/Cod347_2012_ext.tun")
 # catchability at age without year trend
 #====================================================================
 
-#### We have some 0 in catch so the old a4a doesn't run
+#### We have some 0 in catch we sum them to select the proper plusgroup
 with(as.data.frame(catch.n(stk)), tapply(data, age, function(x) sum (x==0)))
 
 #we select the plusgroup 10
 stk <- setPlusGroup(stk, 10)
 
-#### we don't have a plusgroup so we need to set one with the highest value possible (in this case 12 does work but nekane try with higher)
+
 stk@range
 #### let's look how many survey we have in the index
 lapply(idx, range)
@@ -398,7 +396,7 @@ idx <- readFLIndices("Plaice/Raised_and_Reconstructed/fleet_trimmed.txt")
 #### there are some -1 in the index so I change them in NA
 idx[[3]]@index[,as.character(2003)] <- NA
 
-#### We have some 0 in catch so the old a4a doesn't run
+#### We have some 0 in catch...
 with(as.data.frame(catch.n(stk)), tapply(data, age, function(x) sum (x==0)))
 
 stk@range

@@ -1,4 +1,4 @@
-# load.R - DESC
+
 # load.R
 
 # Copyright 2003-2013 FLR Team. Distributed under the GPL 2 or later
@@ -11,6 +11,7 @@ library(r4ss)
 library(plyr)
 library(reshape)
 library(FLCore)
+library(FLa4a)
 
 #########################################################################################
 ##### ICCAT North Atlantic Albacore ./AlbacoreTuna - MFCL {{{
@@ -40,7 +41,7 @@ lst <- lapply(split(data, data$Fishery), function(x) {
   flqLen <- FLQuant(dimnames=dnms)
   
   for(i in m){
-   xx <- x[x$Month==as.character(i),]
+    xx <- x[x$Month==as.character(i),]
     cth[,as.character(xx$Year),,as.character(i)] <- xx$Catch.t.
     eff[,as.character(xx$Year),,as.character(i)] <- xx$Effort
     flqLen[as.character(len),as.character(xx$Year),,as.character(i)] <- t(xx[-c(1:7, 69)])
@@ -62,16 +63,18 @@ CPUE <- lst[[8]]$cth/lst[[8]]$eff
 summary (CPUE)
 seasonSums(CPUE)
 
-    # }}}
+# }}}
+
 ##save(stk, idx, CPUE, file="data/Albacore.RData") ?????????
+
 
 #################################################################################################
 # BoB Anchovy ./BiscayAnchovy - {{{
 #########################################################################################
 
-######## TO DO !!!!...Report ICES, maturity...
+######## There is only the table with some catch and some survey... this is the code of Iago!!!!
 
-data <- read.table("./BiscayAnchovy/anchovy.dat", header=TRUE)
+data <- read.table("BiscayAnchovy/anchovy.dat", header=TRUE)
 
 catch <- FLQuant(dimnames=list(year=data$year, age=c(1, 2)))
 catch[1,] <- data$c12
@@ -144,11 +147,12 @@ cpue[[2]]
 summary(cpue)
 ######CREATE THE INDEX????????
 
+
 #################################################################################################
 # ./Haddock - VPA {{{
 #################################################################################################
 
-### CHECK!!!
+### WORKS!!! 
 
 stk <- readFLStock("Haddock/hadividx.dat")
 
@@ -161,13 +165,42 @@ catch(stk) <- computeCatch(stk, slot="all")
 # FLIndex
 idx <- readFLIndices("Haddock/hadivef.dat")
 
-save(stk, idx, file="data/haddock.RData") # }}}
+# }}}
+
+#====================================================================
+# fishing mortality by age and year (~separable)
+# catchability at age without year trend
+#====================================================================
+
+#### We have some 0 in catch so we replace them by NA in order to select the proper plusgroups
+
+with(as.data.frame(catch.n(stk)), tapply(data, age, function(x) sum (x==0)))
+
+#### we don't have a plusgroup so we need to set one with the highest value possible (in this case 13 does work, when it is higher we have a strange extimation of the SSB)
+stk@range
+
+stk <- setPlusGroup(stk,10)
+#### let's look how many survey we have in the index
+lapply(idx, range)
+#### we have 5, so we need to make a list of 5 factors in the q model
+
+fmodel <- ~factor(age) + factor(year)
+qmodel <- list(~factor(age), ~factor(age), ~factor(age), ~factor(age), ~factor(age))
+fit1 <- a4a(fmodel, qmodel, stock=stk, indices=idx)
+
+save(stk, idx, fit1, file="data/haddock.RData") 
+
+stk <- stk+fit1
+
+plot(stk)
+plot(fit1, stk)
 
 
 #################################################################################################
 # ./Herring - VPA TODO: FIX broken use of VPA suite codes
 #################################################################################################
 #Check the Indices
+# the stock is not loading everything
 
 stk <- readFLStock("Herring/-INDEX.txt")
 
@@ -258,9 +291,9 @@ m.spwn (stk) <-0.5
 
 ######## Index Abundance
 ##### CPUE
- # 1 purse_seine
- # 2 Acoustic_survey
- # 3 DEPM_survey
+# 1 purse_seine
+# 2 Acoustic_survey
+# 3 DEPM_survey
 CPUE<-data$CPUE  ## Biomass?????
 summary(CPUE)
 flq<- FLQuant(dimnames=list(quant="CPUE",year=1996:2011))
@@ -290,9 +323,11 @@ data <- SS_readdat(file=c("NorthernHake/nhake-update.dat"))
 
 #################################################################################################
 # North Sea Cod - ./NSCod - VPA {{{
-#################################################################################################
+###########################################################################
 
-stk <- readFLStock("./NSCod/Cod347_ext.idx")
+####################### WORK!!!!!!   
+
+stk <- readFLStock("NSCod/Cod347_ext.idx")
 
 # All catch in landings, set diacrds to 0
 discards.n(stk) <- 0
@@ -301,40 +336,106 @@ discards.wt(stk) <- landings.wt(stk)
 catch(stk) <- computeCatch(stk, slot="all")
 
 # FLIndex
-idx <- readFLIndices("./NSCod/Cod347_2012_ext.tun")
+idx <- readFLIndices("NSCod/Cod347_2012_ext.tun")
 
-save(stk, idx, file="data/nscod.RData")
+
 
 # }}}
+
+
+#====================================================================
+# fishing mortality by age and year (~separable)
+# catchability at age without year trend
+#====================================================================
+
+#### We have some 0 in catch so the old a4a doesn't run
+with(as.data.frame(catch.n(stk)), tapply(data, age, function(x) sum (x==0)))
+
+#we select the plusgroup 10
+stk <- setPlusGroup(stk, 10)
+
+#### we don't have a plusgroup so we need to set one with the highest value possible (in this case 12 does work but nekane try with higher)
+stk@range
+#### let's look how many survey we have in the index
+lapply(idx, range)
+#the survey is until the 2012, but the stock data is until 2011, we cut the survey until 2011
+idx_x<- window(idx, start=1983, end=2011)
+lapply(idx_x, range)
+#### we have 1 so we need to make a list of 1 factor in the q model
+
+fmodel <- ~factor(age) + factor(year)
+qmodel <- list(~factor(age))
+fit1 <- a4a(fmodel, qmodel, stock=stk, indices=idx_x)
+
+save(stk, idx, fit1,idx_x, file="data/nscod.RData")
+
+stk <- stk+fit1
+
+plot(stk)
+plot(fit1, stk)
 
 
 #################################################################################################
 # North Sea Plaice ./Plaice - VPA {{{
 #################################################################################################
 
-# Check plots....recriutment, F, SSB...
+# WORKS!!!!
 
-stk <- readFLStock("./Plaice/Raised_and_Reconstructed/index_IV_VIId_raised+recon.txt")
+stk <- readFLStock("Plaice/Raised_and_Reconstructed/index_IV_VIId_raised+recon.txt")
 
 discards(stk) <- computeDiscards(stk)
 catch(stk) <- computeCatch(stk, slot="all")
 
-idx <- readFLIndices("./Plaice/Raised_and_Reconstructed/fleet_trimmed.txt")
+idx <- readFLIndices("Plaice/Raised_and_Reconstructed/fleet_trimmed.txt")
 
-save(stk, idx, file="data/nsplaice.RData") # }}}
+ # }}}
+
+#====================================================================
+# fishing mortality by age and year (~separable)
+# catchability at age without year trend
+#====================================================================
+
+#### there are some -1 in the index so I change them in NA
+idx[[3]]@index[,as.character(2003)] <- NA
+
+#### We have some 0 in catch so the old a4a doesn't run
+with(as.data.frame(catch.n(stk)), tapply(data, age, function(x) sum (x==0)))
+
+stk@range
+
+#we select the plusgroup 12
+stk <- setPlusGroup(stk, 12)
+
+fmodel <- ~factor(age) + factor(year)
+#### let's look how many survey we have in the index
+lapply(idx, range)
+#### we have 3 so we need to make a list of 3 factors in the q model
+qmodel <- list(~factor(age),~factor(age),~factor(age))
+fit1 <- a4a(fmodel, qmodel, stock=stk, indices=idx)
+
+save(stk, idx, fit1, file="data/nsplaice.RData")
+
+stk <- stk+fit1
+
+plot(stk)
+plot(fit1, stk)
+
 
 
 #################################################################################################
 # ./SouthAfriAnchovy - TODO: By hand
 #################################################################################################
 
-data <- read.csv(file=c("SouthAfricAnchovy/SouthAfricAnchovy.csv"),header=FALSE, skip=11, sep="\t")
+# We imported everything that seemed relevant from the file but we are not really sure what they are and what is missing (for sure we didn't find m or mat)... 
 
 
+##### catch at age
+
+cage<- read.csv(file= c("SouthAfriAnchovy/SouthAfricanAnchovy.csv"), header=FALSE, skip=11, sep="\t"  )
 cage<-cage[1:28,1:2]
 
-# Catch-at-age  from1984to2011(inrows)fromrecruits(age0)toage1(incolumns)for1Nov1984to31Oct2011  
-# inbillionsofnumbers
+# Catch-at-age  from  1984	to	2011	(in	rows)	from	recruits	(age	0)	to	age	1	(in	columns)	for	1	Nov	1984	to	31	Oct	2011				
+# in	billions	of	numbers
 
 age1<-c(0,1)
 
@@ -345,12 +446,12 @@ catage<-flq
 
 #### Weight at age
 
-wtage<- read.csv(file= c("WCSAMdata/SouthAfriAnchovy/SouthAfricanAnchovy.csv"), header=FALSE, skip=42, sep="\t"  )
+wtage<- read.csv(file= c("SouthAfriAnchovy/SouthAfricanAnchovy.csv"), header=FALSE, skip=42, sep="\t"  )
 wtage<-wtage[1:28,1:2]
 
 
-# Weight-at-age  inthecatchfrom1984to2011(inrows)fromrecruits(age0)toage1(incolumns)for1Nov1984to31Oct2011
-# ingrams
+# Weight-at-age  in	the	catch	from	1984	to	2011	(in	rows)	from	recruits	(age	0)	to	age	1	(in	columns)	for	1	Nov	1984	to	31	Oct	2011	
+# in	grams
 
 flq<- FLQuant(dimnames=list(age=age1,year=1984:2011),units="grams")
 flq[as.character(age1)] <- t(wtage)
@@ -358,11 +459,11 @@ flq[as.character(age1)] <- t(wtage)
 wtatage<-flq
 
 
-#  Weight-at-age1intheNovembersurveyfrom1984to2011	
-#ingrams
+#  Weight-at-age	1	in	the	November	survey	from	1984	to	2011																	
+#	in	grams	
 
-wtage1<- read.csv(file= c("WCSAMdata/SouthAfriAnchovy/SouthAfricanAnchovy.csv"), header=FALSE, skip=73, sep="\t"  )
-wtage1<-wtage1[1,]
+wtage1<- read.csv(file= c("SouthAfriAnchovy/SouthAfricanAnchovy.csv"), header=FALSE, skip=73, sep="\t"  )
+wtage1<-wtage1[1,1:28]
 wtage1<-t(as.numeric(t(wtage1)))
 
 flq<- FLQuant(dimnames=list(age=age1,year=1984:2011),units="grams")
@@ -370,10 +471,10 @@ flq[as.character(1)]  <- wtage1[1,]
 
 wtatage1<-flq
 
-#  Weight-at-age2+intheNovembersurveyfrom1984to2011#ingrams	
+#  Weight-at-age	2+	in	the	November	survey	from	1984	to	2011	#	in	grams		
 
-wtage2<- read.csv(file= c("WCSAMdata/SouthAfriAnchovy/SouthAfricanAnchovy.csv"), header=FALSE, skip=77, sep="\t"  )
-wtage2<-wtage2[1,]
+wtage2<- read.csv(file= c("SouthAfriAnchovy/SouthAfricanAnchovy.csv"), header=FALSE, skip=77, sep="\t"  )
+wtage2<-wtage2[1,1:28]
 wtage2<-t(as.numeric(t(wtage2)))
 
 flq<- FLQuant(dimnames=list(age=c(0,1,2),year=1984:2011),units="grams")
@@ -381,10 +482,10 @@ flq[as.character(2)]  <- wtage2[1,]
 
 wtatage2<-flq
 
-#Observed  biomass(inthousandtons)intheNovembersurveyforNov1984toNov2011
+#Observed  biomass	(in	thousand	tons)	in	the	November	survey	for	Nov	1984	to	Nov	2011
 
 
-obsbiom<- read.csv(file= c("WCSAMdata/SouthAfriAnchovy/SouthAfricanAnchovy.csv"), header=FALSE, skip=80, sep="\t"  )
+obsbiom<- read.csv(file= c("SouthAfriAnchovy/SouthAfricanAnchovy.csv"), header=FALSE, skip=80, sep="\t"  )
 obsbiom<-obsbiom[1,1:28]
 obsbiom<-t(as.numeric(t(obsbiom)))
 flq<- FLQuant(dimnames=list(year=1984:2011),units="thousand tons")
@@ -392,9 +493,9 @@ flq[]  <- obsbiom
 
 biomass<-flq
 
-#Observed  abundanceinDEPmethodforNov1984toNov1993	
+#Observed  abundance	in	DEP	method	for	Nov	1984	to	Nov	1993		
 
-abun<- read.csv(file= c("WCSAMdata/SouthAfriAnchovy/SouthAfricanAnchovy.csv"), header=FALSE, skip=87, sep="\t"  )
+abun<- read.csv(file= c("SouthAfriAnchovy/SouthAfricanAnchovy.csv"), header=FALSE, skip=87, sep="\t"  )
 abun<-abun[1,1:10]
 abun<-t(as.numeric(t(abun)))
 flq<- FLQuant(dimnames=list(year=1984:2011))
@@ -402,9 +503,9 @@ flq[,as.character(c(1984:1993))]  <- abun
 
 abun<-flq
 
-#Observed  Proportion-at-age1intheNovembersurveyforNov1984toNov2011
+#Observed  Proportion-at-age	1	in	the	November	survey	for	Nov	1984	to	Nov	2011	
 
-propage<- read.csv(file= c("WCSAMdata/SouthAfriAnchovy/SouthAfricanAnchovy.csv"), header=FALSE, skip=93, sep="\t"  )
+propage<- read.csv(file= c("SouthAfriAnchovy/SouthAfricanAnchovy.csv"), header=FALSE, skip=93, sep="\t"  )
 propage<-propage[1,1:28]
 propage<-t(as.numeric(t(propage)))
 flq<- FLQuant(dimnames=list(year=1984:2011))
@@ -413,23 +514,223 @@ flq[]  <- propage
 propage<-flq
 
 
+#Neffective  (weighting	applied	to	proportion-at-age	1)	
+
+Neffective<- read.csv(file= c("SouthAfriAnchovy/SouthAfricanAnchovy.csv"), header=FALSE, skip=96, sep="\t"  )
+Neffective<-Neffective[1,1:28]
+Neffective<-t(as.numeric(t(Neffective)))
+flq<- FLQuant(dimnames=list(year=1984:2011))
+flq[]  <- Neffective
+Neffective<-flq
+
+#Recruit  catch	prior	to	May	survey	for	1985	to	2011	(in	billions)
+
+Reccatch<- read.csv(file= c("SouthAfriAnchovy/SouthAfricanAnchovy.csv"), header=FALSE, skip=99, sep="\t"  )
+Reccatch<-Reccatch[1,c(1:9,11:28)]
+Reccatch<-t(as.numeric(t(Reccatch)))
+flq<- FLQuant(dimnames=list(year=1984:2011),units="billions")
+flq[,as.character(c(1985:2011))]  <- Reccatch
+
+Reccatch<-flq
+
+#Observed  Numbers	(in	billions)	in	the	recruit	survey	for	May	1985	to	May	2011
+
+obsnum<- read.csv(file= c("SouthAfriAnchovy/SouthAfricanAnchovy.csv"), header=FALSE, skip=103, sep="\t"  )
+obsnum<-obsnum[1,1:27]
+obsnum<-t(as.numeric(t(obsnum)))
+flq<- FLQuant(dimnames=list(year=1984:2011),units="billions")
+flq[,as.character(c(1985:2011))]  <- obsnum
+
+obsnum<-flq
+
+
+
 #################################################################################################
 # ./SouthernHorseMack - ADMB
 #################################################################################################
 
-seems ok
+# we imported the thing that seemed to be relevant but we cannot find the m... and since there is the fishery and the survey we don't know how to act... sorry 
+
+#  Catch  Biomass																															
+#	1992	1993	1994	1995	1996	1997	1998	1999	2000	2001	2002	2003	2004	2005	2006	2007	2008	2009	2010	
+
+
+ctbiom<- read.csv(file= c("SouthernHorseMack/hm2011_nozero.csv"), header=FALSE, skip=15, sep="\t"  )
+ctbiom<-ctbiom[1,1:19]
+ctbiom<-t(as.numeric(t(ctbiom)))
+flq<- FLQuant(dimnames=list(year=1992:2010))
+flq[]  <- ctbiom
+
+biomass<-flq
+
+# Catch at age?
+#  Fishery																																
+#	0	1	2	3	4	5	6	7	8	9	10	11
+cth<- read.csv(file= c("SouthernHorseMack/hm2011_nozero.csv"), header=FALSE, skip=27, sep="\t" ,nrows=19 )
+
+cth<-cth[,1:12]
+summary(cth)
+
+age1<-c(0:11)
+
+flq<- FLQuant(dimnames=list(age=age1,year=1992:2010))
+flq[as.character(age1)] <- t(cth)
+
+catage<-flq
+
+#  Fishery	wt	age	in	grams
+wtage<- read.csv(file= c("SouthernHorseMack/hm2011_nozero.csv"), header=FALSE, skip=47, sep="\t" ,nrows=19 )
+
+wtage<-wtage[,1:12]
+summary(wtage)
+
+age1<-c(0:11)
+
+flq<- FLQuant(dimnames=list(age=age1,year=1992:2010),units="grams")
+flq[as.character(age1)] <- t(wtage)
+
+wtatage<-flq
+
+#  Biomass	indices	of	survey	*	1000	(numbers	*	weight	*	1000)	
+
+obsbiom<-read.csv(file= c("SouthernHorseMack/hm2011_nozero.csv"), header=FALSE, skip=77, sep="\t" ,nrows=1 )
+
+obsbiom<-obsbiom[1,1:19]
+obsbiom<-t(as.numeric(t(obsbiom)))
+flq<- FLQuant(dimnames=list(year=1992:2010))
+flq[]  <- obsbiom
+summary(flq)
+biomass<-flq
+
+#  Survey	*	0.3	??????
+
+survey<-read.csv(file= c("SouthernHorseMack/hm2011_nozero.csv"), header=FALSE, skip=79, sep="\t" ,nrows=1 )
+
+survey<-survey[1,1:19]
+survey<-t(as.numeric(t(survey)))
+flq<- FLQuant(dimnames=list(year=1992:2010))
+flq[]  <- survey
+summary(flq)
+survey<-flq
+
+
+#  Survey	age	data	(age	zero	is	removed	--	put	=	0)	
+
+cthagesur<- read.csv(file= c("SouthernHorseMack/hm2011_nozero.csv"), header=FALSE, skip=88, sep="\t" ,nrows=19 )
+
+cthagesur<-cthagesur[,1:12]
+summary(cthagesur)
+
+age1<-c(0:11)
+
+flq<- FLQuant(dimnames=list(age=age1,year=1992:2010))
+flq[as.character(age1)] <- t(cthagesur)
+
+catagesur<-flq
+
+
+#  Survey	weight	at	age	in	Kg	
+
+wtagesur<- read.csv(file= c("SouthernHorseMack/hm2011_nozero.csv"), header=FALSE, skip=108, sep="\t" ,nrows=19 )
+
+wtagesur<-wtagesur[,1:12]
+summary(wtagesur)
+
+age1<-c(0:11)
+
+flq<- FLQuant(dimnames=list(age=age1,year=1992:2010),units="kg")
+flq[as.character(age1)] <- t(wtagesur)
+
+wtatagesur<-flq
+
+#  Maturity	at	Age
+
+
+mat<- read.csv(file= c("SouthernHorseMack/hm2011_nozero.csv"), header=FALSE, skip=131, sep="\t" ,nrows=1 )
+
+mat<-mat[,1:12]
+summary(mat)
+mat<-t(as.numeric(t(mat)))
+
+age1<-c(0:11)
+
+flq<- FLQuant(dimnames=list(age=age1,year=1992:2010))
+flq[as.character(age1)] <- mat
+
+mat<-flq
 
 #################################################################################################
 # ./SpurDog - ADMB
-#################################################################################################
+###########################################################################
+
+###################### We didn't look at it...
 
 dodgy ...
 
 #################################################################################################
 # ./YellowtailFlounder - ADAPT
-#################################################################################################
+###########################################################################
 
-readFLStock('YellowtailFlounder/ytfounder_datainfo.txt', type='Adapt')
-seems ok
+###################### We cannot find the things to create the FLIndex but maybe you will... The FLStock should be ok 
 
 
+# readFLStock('YellowtailFlounder/Georges_Bank_yellowtail_flounder.txt', type='Adapt')
+
+##### years from 1973 to 2011????????????????
+# CATCH AT AGE
+
+cth<- read.csv(file= c("YellowtailFlounder/Georges_Bank_yellowtail_flounder.csv"), header=FALSE, skip=64, sep="\t" ,nrows=39 )
+
+cth<-cth[,1:6]
+summary(cth)
+
+age1<-c(0:5)
+
+flq<- FLQuant(dimnames=list(age=age1,year=1973:2011))
+flq[as.character(age1)] <- t(cth)
+
+catage<-flq
+
+
+# WEIGHT  AT  AGE	
+
+
+wtage<- read.csv(file= c("YellowtailFlounder/Georges_Bank_yellowtail_flounder.csv"), header=FALSE, skip=104, sep="\t" ,nrows=39 )
+
+wtage<-wtage[,1:6]
+summary(wtage)
+
+age1<-c(0:5)
+
+flq<- FLQuant(dimnames=list(age=age1,year=1973:2011))
+flq[as.character(age1)] <- t(wtage)
+
+wtatage<-flq
+
+
+#FLStock
+
+
+YelFl <- FLStock(catch.wt=wtatage,catch.n=catage,landings.wt=wtatage,landings.n=catage,discards.wt=wtatage)
+m(YelFl)<-0.2
+mat(YelFl)<-c(0,  0.462,	0.967,1,1,1	)
+# m.spwn(YelFl)<-0.5
+# harvest.spwn(YelFl)<-0.5
+discards(YelFl)<-0
+discards.n(YelFl)<-0
+
+catch(YelFl) <-quantSums(catch.n(YelFl)*catch.wt(YelFl))
+
+# catch(YelFl) <- computeCatch(stk, slot="all")
+
+summary(YelFl)
+plot(YelFl) #### it doesn't work...
+
+# YelFl <- setPlusGroup(YelFl, plusgroup=15)
+# 
+# xsa.control <- FLXSA.control()
+# 
+# xsa.results <- FLXSA(YelFl, idx, xsa.control)
+# 
+# YelFl <- YelFl + xsa.results
+# plot(YelFl)

@@ -7,11 +7,15 @@
 # Created:
 # Modified:
 
+library(devtools)
+#install_github("FLCore", "flr")
+install_github("FLa4a", "colinpmillar")
+
 library(r4ss)
 library(plyr)
 library(reshape)
 library(FLCore)
-library(FLa4a)
+#library(FLa4a)
 
 #########################################################################################
 ##### ICCAT North Atlantic Albacore ./AlbacoreTuna - MFCL {{{
